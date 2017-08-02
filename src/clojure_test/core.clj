@@ -7,8 +7,8 @@
 (defmacro forever [& body]
   `(while true ~@body))
 
-(def database (influx/make-client {:db "orderbookBTCUSD" :host "localhost"}))
-(println "Connected to the database with a " (influx/ping) "ms ping")
+(def database (influx/make-client {:db "orderbookBTCUSD" :host "bigdatadev"}))
+(println "Connected to the database with a " (influx/ping database) "ms ping")
 (influx/create-db database)
 
 (def url "https://api.bitfinex.com/v1")
@@ -18,21 +18,23 @@
   (json/read-str (get (http/get (str url "/book/" symbol "?limit_bids=15&limit_asks=15&group=1")) :body))
   )
 
-(defn get-points [orders side]
+(defn get-points [orders side timestamp]
   (def as-point (fn [order]
                   {
                     :measurement "orderbook"
                     :tags {"exchange" "bitfinex" "index" (.indexOf orders order) "side" side}
                     :fields {"price" (get order "price") "amount" (get order "amount")}
-                    :timestamp (System/currentTimeMillis)
+                    :timestamp timestamp
                     }
                   ))
   (map as-point orders)
   )
 
 (defn get-orders [orderbook]
-  (def bids (get-points (get orderbook "bids") "bid"))
-  (def asks (get-points (get orderbook "asks") "ask"))
+  (def timestamp (System/currentTimeMillis))
+  (println timestamp)
+  (def bids (get-points (get orderbook "bids") "bid" timestamp))
+  (def asks (get-points (get orderbook "asks") "ask" timestamp))
   (concat bids asks)
   )
 
@@ -46,5 +48,6 @@
   )
 
 (defn -main [& args]
-  (forever (println "saving") (save BTCUSD) (Thread/sleep 1000))
+  (forever (save BTCUSD) (Thread/sleep 1000))
   )
+(-main)
